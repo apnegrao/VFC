@@ -1,0 +1,169 @@
+<project name="Mobihoc" default="build" basedir=".">
+
+	<property name="src.dir" 	location="${basedir}/src"/>
+	<property name="mobihocsrc.dir" location="${basedir}/src/mobihoc"/>
+	<property name="build.dir"	location="${basedir}/build"/>
+	<property name="classes.dir"	location="${build.dir}/classes"/>
+	<property name="dist.dir" 	location="${basedir}/dist"/>
+	<property name="doc.dir" 	location="${basedir}/doc"/>
+	<property name="jar.dir"	location="${basedir}/lib"/>
+	<!-- Directoria que contem ficheiros a serem processados e manipulados pelo EntityAnalyser -->
+	<property name="entity.dir"	location="${basedir}/src/game/entity"/>
+
+	<property file="build.properties" />
+
+	<target name="clean">
+		<delete dir="${build.dir}"/>
+		<delete dir="${doc.dir}"/>
+	</target>
+
+	<path id="jars-classpath">  
+		<fileset dir="${jar.dir}" >
+			<include name="*.jar"/>  
+		</fileset>  
+	</path>
+
+	<target name="compile-mobihoc">
+		<mkdir dir="${classes.dir}"/>
+		<javac srcdir="${mobihocsrc.dir}" destdir="${classes.dir}">
+			<compilerarg value="-Xlint:unchecked"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</javac>
+	</target>
+
+	<target name="compile-pass1" depends="compile-mobihoc">
+		<mkdir dir="${classes.dir}"/>
+		<javac srcdir="${entity.dir}" destdir="${classes.dir}">
+			<compilerarg value="-Xlint:unchecked"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</javac>
+	</target>
+
+	<target name="compile-pass2">
+		<mkdir dir="${classes.dir}"/>
+		<javac srcdir="${src.dir}" destdir="${classes.dir}">
+			<compilerarg value="-Xlint:unchecked"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</javac>
+	</target>
+
+	<target name="main" depends="clean,compile"/>
+	<target name="build" depends="main"/> <!-- Alias for main -->
+	
+	<!-- Nota: Para correr no Mac OS X, tem que se adicionar -XstartOnFirstThread à command-line do java! -->
+
+	<target name="run-oldapp" depends="main">
+		<java classname="app.MainMIDlet" classpath="${classes.dir}" fork="true"/>
+	</target>
+	
+	<target name="run-asm" depends="main">
+		<java classname="mobihoc.asm.Helloworld" classpath="${classes.dir}" fork="true">
+			<arg value=""/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+        </target>
+	
+	<!-- Devido a limitações do gencode, isto tem que ser sempre precedido de um clean -->
+	<target name="gencode" depends="clean,compile-pass1">
+		<!-- Obter lista de ficheiros a processar -->
+		<path id="entities">
+			<fileset dir="${classes.dir}">
+				<include name="game/entity/*.class"/>
+			</fileset>
+		</path>
+		<!-- Transformar lista em paths relativas -->
+		<pathconvert property="entities-rel" refid="entities" pathsep=" " dirsep="/">
+			<map from="${classes.dir}/" to="" />
+		</pathconvert>
+		<!-- Executar EntityAnalyser, pass 1 -->
+		<java classname="mobihoc.javassist.EntityAnalyser" classpath="${classes.dir}" fork="true">
+			<arg value="${entities-rel}"/>
+			<arg value="${classes.dir}"/>
+			<!--<arg value="-pass1"/>-->
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+		<!-- Executar EntityMorph -->
+		<java classname="mobihoc.asm.EntityMorph" classpath="${classes.dir}" fork="true">
+			<arg value="${entities-rel}"/>
+			<arg value="${classes.dir}"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+		<!-- Executar EntityAnalyser, pass 2 -->
+		<!--<java classname="mobihoc.javassist.EntityAnalyser" classpath="${classes.dir}" fork="true">
+			<arg value="${entities-rel}"/>
+			<arg value="${classes.dir}"/>
+			<arg value="-pass2"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>-->
+        </target>
+	
+	<target name="gencode-pass3" depends="gencode, compile-pass2">
+		<!-- Executar EntityAnalyser, pass 3 -->
+		<!--<java classname="mobihoc.javassist.EntityAnalyser" classpath="${classes.dir}" fork="true">
+			<arg value="game/GameWidget.class"/>
+			<arg value="${classes.dir}"/>
+			<arg value="-pass3"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>-->
+		<!-- Executar AppMorph -->
+		<java classname="mobihoc.asm.AppMorph" classpath="${classes.dir}" fork="true">
+			<arg value="game/GameWidget.class"/>
+			<arg value="${classes.dir}"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+	</target>
+
+	<target name="compile" depends="gencode, gencode-pass3" />
+
+	<target name="run-client" depends="main">
+		<java classname="game.GameMain" classpath="${classes.dir}" fork="true">
+			<arg value="-client"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+        </target>
+	
+	<target name="run-client-fast" depends="compile">
+		<java classname="game.GameMain" classpath="${classes.dir}" fork="true">
+			<arg value="-client"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+        </target>
+
+	<target name="run-server" depends="main">
+		<java classname="game.GameMain" classpath="${classes.dir}" fork="true">
+			<arg value="-server"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+        </target>
+
+	<target name="run-server-tcplocalhost" depends="main">
+		<java classname="game.GameMain" classpath="${classes.dir}" fork="true">
+			<arg value="-server-tcplocalhost"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+        </target>
+	
+	<target name="run-server-fast">
+		<java classname="game.GameMain" classpath="${classes.dir}" fork="true">
+			<arg value="-server"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+        </target>
+
+	<target name="run-server-fast-tcplocalhost">
+		<java classname="game.GameMain" classpath="${classes.dir}" fork="true">
+			<arg value="-server-tcplocalhost"/>
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</java>
+        </target>
+
+	<target name="javadoc">
+		<delete dir="${doc.dir}"/>
+		<mkdir dir="${doc.dir}"/>
+		<javadoc sourcepath="${src.dir}" destdir="${doc.dir}" docencoding="utf-8" charset="utf-8"
+			 linksource="yes" failonerror="yes">
+			<classpath><path refid="jars-classpath"/></classpath>  
+		</javadoc>
+	</target>
+
+</project>
